@@ -66,12 +66,25 @@ public class BatchConfig {
             .listener((ItemWriteListener<? super LogRecord>) itemLog)
         .build();
   }
-
   @Bean
-  public Job importJob(JobRepository repo, Step importStep) {
+  public Step listFilesStep(JobRepository repo, PlatformTransactionManager tx) {
+    return new StepBuilder("listFiles", repo)
+            .tasklet((contribution, chunkContext) -> {
+              var resources = com.example.batch.io.FilteredResources.gzWithName(inputDir, glob, mustContain);
+              org.slf4j.LoggerFactory.getLogger(getClass()).info("Files that will be processed:");
+              for (var r : resources) {
+                org.slf4j.LoggerFactory.getLogger(getClass()).info("  -> {}", r.getURL());
+              }
+              return org.springframework.batch.repeat.RepeatStatus.FINISHED;
+            }, tx)
+            .build();
+  }
+  @Bean
+  public Job importJob(JobRepository repo, Step listFilesStep, Step importStep) {
     return new JobBuilder("importJob", repo)
-        .listener(new JobLog())
-        .start(importStep)
-        .build();
+            .listener(new JobLog())
+            .start(listFilesStep)
+            .next(importStep)
+            .build();
   }
 }
