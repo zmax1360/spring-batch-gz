@@ -1,37 +1,57 @@
 <configuration scan="true">
-  <!-- variable to control main level -->
+  <!-- paths -->
   <property name="LOG_PATH" value="logs"/>
+  <property name="MAIN_FILE" value="${LOG_PATH}/app.log"/>
 
-  <!-- standard console -->
+  <!-- console (optional) -->
   <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
 
-  <!-- one file per serviceName -->
-  <appender name="SERVICE_SPLIT"
-            class="ch.qos.logback.classic.sift.SiftingAppender">
+  <!-- MAIN log: everything goes here (framework + app) -->
+  <appender name="MAIN_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${MAIN_FILE}</file>
+    <append>true</append>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_PATH}/app-%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>14</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Per-service logs: only for app logs that set MDC 'service' -->
+  <appender name="SERVICE_SPLIT" class="ch.qos.logback.classic.sift.SiftingAppender">
     <discriminator class="ch.qos.logback.classic.sift.MDCBasedDiscriminator">
       <key>service</key>
-      <defaultValue>unknown</defaultValue>
+      <defaultValue>other</defaultValue> <!-- no MDC -> other.log -->
     </discriminator>
     <sift>
       <appender name="FILE-${service}" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_PATH}/${service}.log</file>
+        <append>true</append>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
           <fileNamePattern>${LOG_PATH}/${service}-%d{yyyy-MM-dd}.log</fileNamePattern>
-          <maxHistory>7</maxHistory>
+          <maxHistory>14</maxHistory>
         </rollingPolicy>
         <encoder>
-          <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+          <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
         </encoder>
       </appender>
     </sift>
   </appender>
 
+  <!-- Root: framework + app -> MAIN + CONSOLE -->
   <root level="INFO">
-    <appender-ref ref="CONSOLE" />
-    <appender-ref ref="SERVICE_SPLIT" />
+    <appender-ref ref="MAIN_FILE"/>
+    <appender-ref ref="CONSOLE"/>
   </root>
+
+  <!-- App package: ALSO send to per-service files; keep additivity so it still reaches MAIN -->
+  <logger name="com.example.batch" level="INFO" additivity="true">
+    <appender-ref ref="SERVICE_SPLIT"/>
+  </logger>
 </configuration>
