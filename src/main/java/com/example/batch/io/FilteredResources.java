@@ -13,14 +13,23 @@ public final class FilteredResources {
     private FilteredResources() {}
 
     public static Resource[] gzWithName(String inputDir, String glob, String mustContain) {
+        String normDir = normalizeDir(inputDir);
+        String pattern = normDir.endsWith("/") ? normDir + glob : normDir + "/" + glob;
+
+        log.info("Input dir (raw)  : {}", inputDir);
+        log.info("Input dir (norm) : {}", normDir);
+        log.info("Glob pattern     : {}", pattern);
+
         try {
-            String normDir = normalizeDir(inputDir); // add file: if missing, fix slashes
-            String pattern = normDir.endsWith("/") ? normDir + glob : normDir + "/" + glob;
-
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-            Resource[] all = resolver.getResources(pattern);
+            Resource[] candidates = resolver.getResources(pattern);
 
-            Resource[] filtered = Arrays.stream(all)
+            log.info("Found {} candidate resource(s) before filename filter:", candidates.length);
+            for (Resource r : candidates) {
+                log.info("  - {}", safeUrl(r));
+            }
+
+            Resource[] selected = Arrays.stream(candidates)
                     .filter(Resource::isReadable)
                     .filter(r -> {
                         String n = r.getFilename() == null ? "" : r.getFilename();
@@ -28,50 +37,39 @@ public final class FilteredResources {
                     })
                     .toArray(Resource[]::new);
 
-            log.info("Resolved {} candidates under pattern: {}", all.length, pattern);
-            for (Resource r : filtered) {
-                log.info("Selected: {}", safeDesc(r));
+            log.info("Selected {} resource(s) after filter contains='{}':", selected.length, mustContain);
+            for (Resource r : selected) {
+                log.info("  ✓ {}", safeUrl(r));
             }
-            log.info("Total selected after filename filter (contains='{}'): {}", mustContain, filtered.length);
-            return filtered;
 
+            return selected;
         } catch (IOException e) {
-            throw new RuntimeException("Failed to list resources under inputDir=" + inputDir + " glob=" + glob, e);
+            throw new RuntimeException("Failed to list resources. inputDir=" + inputDir + " glob=" + glob, e);
         }
     }
 
     private static String normalizeDir(String inputDir) {
         if (inputDir == null || inputDir.isBlank()) return "file:.";
-        // Already a resource location?
         if (inputDir.startsWith("file:") || inputDir.startsWith("classpath:")) return inputDir;
 
         // UNC like \\SERVER\Share\folder -> file:////SERVER/Share/folder
         if (inputDir.startsWith("\\\\")) {
             String noBack = inputDir.replace('\\', '/'); // //SERVER/Share/folder
-            if (noBack.startsWith("//")) {
-                return "file:" + noBack; // file:////SERVER/Share/folder
-            }
-            return "file:/" + noBack;
+            return noBack.startsWith("//") ? "file:" + noBack : "file:/" + noBack;
         }
-
-        // Windows drive like C:\path -> file:///C:/path
+        // Windows drive C:\path -> file:///C:/path
         if (inputDir.matches("^[A-Za-z]:\\\\.*")) {
             String noBack = inputDir.replace('\\', '/'); // C:/path
             return "file:///" + noBack;
         }
-
-        // Absolute *nix path like /mnt/network/path
+        // *nix absolute
         if (inputDir.startsWith("/")) return "file:" + inputDir;
 
-        // Relative path
+        // relative
         return "file:" + (inputDir.startsWith("./") ? inputDir : "./" + inputDir);
     }
 
-    private static String safeDesc(Resource r) {
-        try {
-            return r.getURL().toString();
-        } catch (Exception e) {
-            return String.valueOf(r);
-        }
+    private static String safeUrl(Resource r) {
+        try { return r.getURL().toString(); } catch (Exception e) { return r.toString(); }
     }
 }
