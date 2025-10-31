@@ -2,19 +2,19 @@ package com.example.batch;
 
 import com.example.batch.io.FilteredResources;
 import com.example.batch.io.GzipLineItemReader;
-import com.example.batch.log.LoggingListeners.*;
+import com.example.batch.log.LoggingListeners.ChunkLog;
+import com.example.batch.log.LoggingListeners.ItemLog;
+import com.example.batch.log.LoggingListeners.JobLog;
+import com.example.batch.log.LoggingListeners.StepLog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.batch.core.Job;
-import org.springframework.batch.core.Step;
+import org.springframework.batch.core.*;
 import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.MultiResourceItemReader;
-import org.springframework.batch.item.support.ClassifierCompositeItemWriter;
-import org.springframework.batch.classify.Classifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -49,14 +49,15 @@ public class BatchConfig {
                          MultiResourceItemReader<String> reader,
                          ItemProcessor<String, LogRecord> processor,
                          ItemWriter<LogRecord> writer) {
+    var itemLog = new ItemLog();
     return new StepBuilder("importStep", repo)
         .<String, LogRecord>chunk(chunkSize, tx)
         .reader(reader)
         .processor(processor)
         .writer(writer)
-        .listener(new StepLog())
-        .listener(new ChunkLog())
-        .listener(new ItemLog())
+            .listener((ItemReadListener<? super String>) itemLog)
+            .listener((ItemProcessListener<? super String, ? super LogRecord>) itemLog)
+            .listener((ItemWriteListener<? super LogRecord>) itemLog)
         .build();
   }
 

@@ -5,6 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.listener.ChunkListenerSupport;
 import org.springframework.batch.core.listener.ItemListenerSupport;
+import org.springframework.batch.core.listener.JobExecutionListenerSupport;
+import org.springframework.batch.core.listener.StepExecutionListenerSupport;
 import org.springframework.batch.core.scope.context.ChunkContext;
 
 public class LoggingListeners {
@@ -14,9 +16,10 @@ public class LoggingListeners {
     @Override public void beforeJob(JobExecution job) { log.info("JOB START name={} params={}", job.getJobInstance().getJobName(), job.getJobParameters()); }
     @Override public void afterJob(JobExecution job)  { log.info("JOB END   status={} read={} write={} skip={}",
         job.getStatus(),
-        job.getStepExecutions().stream().mapToInt(StepExecution::getReadCount).sum(),
-        job.getStepExecutions().stream().mapToInt(StepExecution::getWriteCount).sum(),
-        job.getStepExecutions().stream().mapToInt(StepExecution::getSkipCount).sum()); }
+        job.getStepExecutions().stream().mapToLong(StepExecution::getReadCount).sum(),
+        job.getStepExecutions().stream().mapToLong(StepExecution::getWriteCount).sum(),
+        job.getStepExecutions().stream().mapToLong(StepExecution::getSkipCount).sum());
+    }
   }
 
   public static class StepLog extends StepExecutionListenerSupport {
@@ -40,6 +43,6 @@ public class LoggingListeners {
   public static class ItemLog extends ItemListenerSupport<Object, Object> {
     private static final Logger log = LoggerFactory.getLogger(ItemLog.class);
     @Override public void onProcessError(Object item, Exception e) { log.warn("PROCESS ERROR item={} msg={}", item, e.getMessage()); }
-    @Override public void onWriteError(Exception e, java.util.List items) { log.warn("WRITE ERROR count={} msg={}", items.size(), e.getMessage()); }
+
   }
 }
