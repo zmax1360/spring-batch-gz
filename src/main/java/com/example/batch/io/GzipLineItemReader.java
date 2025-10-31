@@ -75,7 +75,9 @@ public class GzipLineItemReader implements ResourceAwareItemReaderItemStream<Str
 
   @Override
   public void update(ExecutionContext ec) {
-    ec.putLong(checkpointKey, lineIndex);
+    if (checkpointKey != null) {
+      ec.putLong(checkpointKey, lineIndex);
+    }
   }
 
   @Override

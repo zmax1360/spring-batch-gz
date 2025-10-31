@@ -61,35 +61,23 @@ public class BatchConfig {
   @Bean public ItemProcessor<String, LogRecord> processor() { return new LineToRecordProcessor(); }
   @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
 
-//  @Bean
-//  public Step importStep(JobRepository repo, PlatformTransactionManager tx,
-//                         MultiResourceItemReader<String> reader,
-//                         ItemProcessor<String, LogRecord> processor,
-//                         ItemWriter<LogRecord> writer) {
-//    var itemLog = new ItemLog();
-//    return new StepBuilder("importStep", repo)
-//        .<String, LogRecord>chunk(chunkSize, tx)
-//        .reader(reader)
-//        .processor(processor)
-//        .writer(writer)
-//            .listener(new StepLog())
-//            .listener(new ChunkLog())
-//            .listener(new ReadLog())
-//        .build();
-//  }
   @Bean
   public Step importStep(JobRepository repo, PlatformTransactionManager tx,
-                         @Qualifier("sanityReader") ItemReader<String> reader,   // 👈 swap here
+                         MultiResourceItemReader<String> reader,
                          ItemProcessor<String, LogRecord> processor,
                          ItemWriter<LogRecord> writer) {
+    var itemLog = new ItemLog();
     return new StepBuilder("importStep", repo)
-            .<String, LogRecord>chunk(2, tx)
-            .reader(reader)
-            .processor(processor)
-            .writer(writer)
-            .listener(new ReadLog())  // optional: logs first few reads
-            .build();
+        .<String, LogRecord>chunk(chunkSize, tx)
+        .reader(reader)
+        .processor(processor)
+        .writer(writer)
+            .listener(new StepLog())
+            .listener(new ChunkLog())
+            .listener(new ReadLog())
+        .build();
   }
+
   @Bean
   public Job importJob(JobRepository repo,  Step importStep) {
     return new JobBuilder("importJob", repo)
