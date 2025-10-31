@@ -25,6 +25,7 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
@@ -62,20 +63,30 @@ public class BatchConfig {
   @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
 
   @Bean
-  public Step importStep(JobRepository repo, PlatformTransactionManager tx,
+  public Step importStep(JobRepository repo,
+                         PlatformTransactionManager tx,
                          MultiResourceItemReader<String> reader,
                          ItemProcessor<String, LogRecord> processor,
                          ItemWriter<LogRecord> writer) {
-    var itemLog = new ItemLog();
+
+    // modern executor config
+    ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setThreadNamePrefix("io-");
+    executor.setCorePoolSize(4);      // number of concurrent threads
+    executor.setMaxPoolSize(4);
+    executor.setQueueCapacity(0);     // force new threads rather than queueing
+    executor.initialize();// optional, or control with throttleLimit
+
     return new StepBuilder("importStep", repo)
-        .<String, LogRecord>chunk(chunkSize, tx)
-        .reader(reader)
-        .processor(processor)
-        .writer(writer)
-            .listener(new StepLog())
-            .listener(new ChunkLog())
+            .<String, LogRecord>chunk(chunkSize, tx)
+            .reader(reader)
+            .processor(processor)
+            .writer(writer)
+            .faultTolerant()
+            .skipPolicy((t, count) -> true)
+            .taskExecutor(executor)      // 👈 runs chunks in parallel
             .listener(new ReadLog())
-        .build();
+            .build();
   }
 
   @Bean
