@@ -49,7 +49,18 @@ public class GzipLineItemReader implements ResourceAwareItemReaderItemStream<Str
 
   @Override
   public void close() {
-    try { if (br != null) br.close(); } catch (IOException ignored) {}
+    try {
+      if (br != null) {
+        br.close();
+      }
+    } catch (IOException e) {
+      org.slf4j.LoggerFactory.getLogger(getClass())
+              .warn("Error closing resource {}: {}", resource, e.toString());
+    } finally {
+      br = null;          // ✅ important: reset for next resource
+      resource = null;    // ✅ avoid stale handle
+      lineIndex = 0L;     // ✅ reset counters between files
+    }
   }
 
   @Override
