@@ -15,6 +15,7 @@ import org.springframework.batch.core.job.builder.JobBuilder;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.MultiResourceItemReader;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 import org.springframework.transaction.PlatformTransactionManager;
+
+import java.util.List;
 
 @Configuration
 public class BatchConfig {
@@ -48,7 +51,10 @@ public class BatchConfig {
     mr.setDelegate(delegate); // MultiResource will set resource on the delegate
     return mr;
   }
-
+//  @Bean
+//  ItemReader<String> sanityReader() {
+//    return new org.springframework.batch.item.support.ListItemReader<>(List.of("a,b,c", "x,y,z"));
+//  }
   @Bean public ItemProcessor<String, LogRecord> processor() { return new LineToRecordProcessor(); }
   @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
 
