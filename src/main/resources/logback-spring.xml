@@ -1,10 +1,37 @@
-<configuration>
-  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+<configuration scan="true">
+  <!-- variable to control main level -->
+  <property name="LOG_PATH" value="logs"/>
+
+  <!-- standard console -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
+
+  <!-- one file per serviceName -->
+  <appender name="SERVICE_SPLIT"
+            class="ch.qos.logback.classic.sift.SiftingAppender">
+    <discriminator class="ch.qos.logback.classic.sift.MDCBasedDiscriminator">
+      <key>service</key>
+      <defaultValue>unknown</defaultValue>
+    </discriminator>
+    <sift>
+      <appender name="FILE-${service}" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${service}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+          <fileNamePattern>${LOG_PATH}/${service}-%d{yyyy-MM-dd}.log</fileNamePattern>
+          <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+          <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+      </appender>
+    </sift>
+  </appender>
+
   <root level="INFO">
-    <appender-ref ref="STDOUT"/>
+    <appender-ref ref="CONSOLE" />
+    <appender-ref ref="SERVICE_SPLIT" />
   </root>
 </configuration>
