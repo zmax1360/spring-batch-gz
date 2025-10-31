@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.*;
 import org.springframework.batch.core.job.builder.JobBuilder;
+import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemProcessor;
@@ -20,6 +21,7 @@ import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.MultiResourceItemReader;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
@@ -94,5 +96,23 @@ public class BatchConfig {
             .listener(new JobLog())
             .start(importStep)
             .build();
+  }
+  @Bean
+  ApplicationRunner launchJob(JobLauncher launcher, Job importJob,
+                              @Value("${app.inputDir}") String inputDir,
+                              @Value("${app.glob}") String glob,
+                              @Value("${app.filenameMustContain:}") String mustContain,
+                              @Value("${app.chunkSize:500}") int chunkSize) {
+    return args -> {
+      var params = new JobParametersBuilder()
+              .addString("inputDir", inputDir)
+              .addString("glob", glob)
+              .addString("mustContain", mustContain)
+              .addString("chunkSize", String.valueOf(chunkSize))
+              .addLong("run.id", System.currentTimeMillis()) // makes it unique
+              .toJobParameters();
+
+      launcher.run(importJob, params);
+    };
   }
 }
