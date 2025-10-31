@@ -23,6 +23,11 @@ public class GzipLineItemReader implements ResourceAwareItemReaderItemStream<Str
   public void setResource(Resource resource) {
     this.resource = resource;
     this.checkpointKey = (resource.getFilename() == null ? "unknown" : resource.getFilename()) + ".line";
+    try {
+      org.slf4j.LoggerFactory.getLogger(getClass())
+              .info("Opening resource: {}", resource.getURL());
+    } catch (Exception ignore) {
+    }
   }
 
   @Override
@@ -33,6 +38,8 @@ public class GzipLineItemReader implements ResourceAwareItemReaderItemStream<Str
       this.br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
       for (long i = 0; i < lineIndex; i++) br.readLine(); // fast-forward to checkpoint
     } catch (IOException e) { throw new UncheckedIOException(e); }
+    org.slf4j.LoggerFactory.getLogger(getClass())
+            .info("Starting at line={} for resource={}", lineIndex, checkpointKey);
   }
 
   @Override

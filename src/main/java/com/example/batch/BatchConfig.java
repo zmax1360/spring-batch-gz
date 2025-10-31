@@ -33,6 +33,12 @@ public class BatchConfig {
   @Bean
   public MultiResourceItemReader<String> reader() {
     Resource[] resources = FilteredResources.gzWithName(inputDir, glob, mustContain);
+    if (resources.length == 0) {
+      throw new IllegalStateException(
+              "No input .gz files found. Check inputDir/glob/permissions. " +
+                      "inputDir=" + inputDir + " glob=" + glob + " filenameMustContain=" + mustContain
+      );
+    }
     log.info("Resolved {} input files", resources.length);
     var mr = new MultiResourceItemReader<String>();
     mr.setResources(resources);
