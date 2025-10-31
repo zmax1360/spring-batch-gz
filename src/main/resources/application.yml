@@ -11,6 +11,7 @@ logging:
   level:
     root: INFO
     com.example.batch: INFO
+    org.springframework.batch.item.file: DEBUG
 
 app:
   inputDir: "file:./data"

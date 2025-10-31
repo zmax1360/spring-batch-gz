@@ -2,7 +2,9 @@ package com.example.batch;
 
 import com.example.batch.io.FilteredResources;
 import com.example.batch.io.GzipLineItemReader;
+import com.example.batch.log.LoggingListeners;
 import com.example.batch.log.LoggingListeners.ChunkLog;
+import com.example.batch.log.LoggingListeners.ReadLog;
 import com.example.batch.log.LoggingListeners.ItemLog;
 import com.example.batch.log.LoggingListeners.JobLog;
 import com.example.batch.log.LoggingListeners.StepLog;
@@ -61,30 +63,16 @@ public class BatchConfig {
         .reader(reader)
         .processor(processor)
         .writer(writer)
-            .listener((ItemReadListener<? super String>) itemLog)
-            .listener((ItemProcessListener<? super String, ? super LogRecord>) itemLog)
-            .listener((ItemWriteListener<? super LogRecord>) itemLog)
+            .listener(new StepLog())
+            .listener(new ChunkLog())
+            .listener(new ReadLog())
         .build();
   }
   @Bean
-  public Step listFilesStep(JobRepository repo, PlatformTransactionManager tx) {
-    return new StepBuilder("listFiles", repo)
-            .tasklet((contribution, chunkContext) -> {
-              var resources = com.example.batch.io.FilteredResources.gzWithName(inputDir, glob, mustContain);
-              org.slf4j.LoggerFactory.getLogger(getClass()).info("Files that will be processed:");
-              for (var r : resources) {
-                org.slf4j.LoggerFactory.getLogger(getClass()).info("  -> {}", r.getURL());
-              }
-              return org.springframework.batch.repeat.RepeatStatus.FINISHED;
-            }, tx)
-            .build();
-  }
-  @Bean
-  public Job importJob(JobRepository repo, Step listFilesStep, Step importStep) {
+  public Job importJob(JobRepository repo,  Step importStep) {
     return new JobBuilder("importJob", repo)
             .listener(new JobLog())
-            .start(listFilesStep)
-            .next(importStep)
+            .start(importStep)
             .build();
   }
 }

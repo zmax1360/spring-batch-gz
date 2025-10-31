@@ -45,4 +45,12 @@ public class LoggingListeners {
     @Override public void onProcessError(Object item, Exception e) { log.warn("PROCESS ERROR item={} msg={}", item, e.getMessage()); }
 
   }
+  // logs first few lines read from the delegate
+  public static class ReadLog implements ItemReadListener<String> {
+    private static final Logger log = LoggerFactory.getLogger(ReadLog.class);
+    private int seen = 0;
+    @Override public void afterRead(String item) {
+      if (seen++ < 5) log.info("READ[{}]: {}", seen, item);
+    }
+  }
 }
