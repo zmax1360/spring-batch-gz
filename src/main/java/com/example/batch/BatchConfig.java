@@ -36,6 +36,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 @Configuration
 public class BatchConfig {
@@ -71,30 +72,33 @@ public class BatchConfig {
       return new LogRecord(line, fields);
     };
   }
-  @Bean(name = "perServiceProcessor")
-  ItemProcessor<LogRecord, LogRecord> perServiceProcessor(
-          @Qualifier("pricingProcessor")  PricingProcessor pricing,
-          @Qualifier("settlementProcessor")  SettlementProcessor settlement,
-          @Qualifier("riskProcessor")  RiskProcessor risk,
-          @Qualifier("defaultProcessor")   DefaultProcessor fallback) {
+  @Bean("perServiceProcessor")
+  public ItemProcessor<LogRecord, LogRecord> perServiceProcessor(
+          @Qualifier("defaultProcessor")    ItemProcessor<LogRecord, LogRecord> fallback,
+          @Qualifier("pricingProcessor")    ItemProcessor<LogRecord, LogRecord> pricing,
+          @Qualifier("settlementProcessor") ItemProcessor<LogRecord, LogRecord> settlement,
+          @Qualifier("riskProcessor")       ItemProcessor<LogRecord, LogRecord> risk) {
 
-    var router = new ClassifierCompositeItemProcessor<LogRecord, LogRecord>();
-    router.setClassifier(record -> switch (record.serviceName().toLowerCase()) {
-      case "pricing" -> pricing;
-      case "settlement" -> settlement;
-      case "risk" -> risk;
-      default -> fallback;
-    });
+    Map<String, ItemProcessor<LogRecord, LogRecord>> bySvc = Map.of(
+            "pricing", pricing,
+            "settlement", settlement,
+            "risk", risk
+    );
+
+    var router = new org.springframework.batch.item.support.ClassifierCompositeItemProcessor<LogRecord, LogRecord>();
+    router.setClassifier(rec -> bySvc.getOrDefault(
+            (rec.serviceName() == null ? "unknown" : rec.serviceName().toLowerCase()),
+            fallback));
     return router;
   }
   @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
-  @Bean(name="processorPipeline")
+  @Bean("processorPipeline")
   public ItemProcessor<String, LogRecord> processorPipeline(
-          @Qualifier("lineToRecordProcessor") ItemProcessor<String, LogRecord> lineToRecordProcessor,
-          ItemProcessor<LogRecord, LogRecord> perServiceProcessor) {
+          @Qualifier("lineToRecordProcessor") ItemProcessor<String, LogRecord> first,
+          @Qualifier("perServiceProcessor")   ItemProcessor<LogRecord, LogRecord> second) {
 
     return new CompositeItemProcessorBuilder<String, LogRecord>()
-            .delegates(lineToRecordProcessor, perServiceProcessor)
+            .delegates(first, second)
             .build();
   }
   @Bean
