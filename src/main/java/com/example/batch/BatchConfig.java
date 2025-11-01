@@ -8,6 +8,10 @@ import com.example.batch.log.LoggingListeners.ReadLog;
 import com.example.batch.log.LoggingListeners.ItemLog;
 import com.example.batch.log.LoggingListeners.JobLog;
 import com.example.batch.log.LoggingListeners.StepLog;
+import com.example.batch.processor.DefaultProcessor;
+import com.example.batch.processor.PricingProcessor;
+import com.example.batch.processor.RiskProcessor;
+import com.example.batch.processor.SettlementProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.*;
@@ -19,6 +23,8 @@ import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.file.MultiResourceItemReader;
+import org.springframework.batch.item.support.ClassifierCompositeItemProcessor;
+import org.springframework.batch.item.support.builder.CompositeItemProcessorBuilder;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
@@ -28,6 +34,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -55,18 +62,46 @@ public class BatchConfig {
     mr.setDelegate(delegate); // MultiResource will set resource on the delegate
     return mr;
   }
-  @Bean
-  ItemReader<String> sanityReader() {
-    return new org.springframework.batch.item.support.ListItemReader<>(List.of("a,b,c", "x,y,z"));
-  }
-  @Bean public ItemProcessor<String, LogRecord> processor() { return new LineToRecordProcessor(); }
-  @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
 
+  @Bean(name = "lineToRecordProcessor")
+  public ItemProcessor<String, LogRecord> lineToRecordProcessor() {
+    return line -> {
+      if (line == null || line.isBlank()) return null;
+      var fields = Arrays.stream(line.split(",", -1)).map(String::trim).toList();
+      return new LogRecord(line, fields);
+    };
+  }
+  @Bean(name = "perServiceProcessor")
+  ItemProcessor<LogRecord, LogRecord> perServiceProcessor(
+          @Qualifier("pricingProcessor")  PricingProcessor pricing,
+          @Qualifier("settlementProcessor")  SettlementProcessor settlement,
+          @Qualifier("riskProcessor")  RiskProcessor risk,
+          @Qualifier("defaultProcessor")   DefaultProcessor fallback) {
+
+    var router = new ClassifierCompositeItemProcessor<LogRecord, LogRecord>();
+    router.setClassifier(record -> switch (record.serviceName().toLowerCase()) {
+      case "pricing" -> pricing;
+      case "settlement" -> settlement;
+      case "risk" -> risk;
+      default -> fallback;
+    });
+    return router;
+  }
+  @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
+  @Bean(name="processorPipeline")
+  public ItemProcessor<String, LogRecord> processorPipeline(
+          @Qualifier("lineToRecordProcessor") ItemProcessor<String, LogRecord> lineToRecordProcessor,
+          ItemProcessor<LogRecord, LogRecord> perServiceProcessor) {
+
+    return new CompositeItemProcessorBuilder<String, LogRecord>()
+            .delegates(lineToRecordProcessor, perServiceProcessor)
+            .build();
+  }
   @Bean
   public Step importStep(JobRepository repo,
                          PlatformTransactionManager tx,
                          MultiResourceItemReader<String> reader,
-                         ItemProcessor<String, LogRecord> processor,
+                         @Qualifier("processorPipeline") ItemProcessor<String, LogRecord> processorPipeline,
                          ItemWriter<LogRecord> writer) {
 
     // modern executor config
@@ -80,7 +115,7 @@ public class BatchConfig {
     return new StepBuilder("importStep", repo)
             .<String, LogRecord>chunk(chunkSize, tx)
             .reader(reader)
-            .processor(processor)
+            .processor(processorPipeline)
             .writer(writer)
             .faultTolerant()
             .skipPolicy((t, count) -> true)
