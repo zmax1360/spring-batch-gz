@@ -12,6 +12,9 @@ import com.example.batch.processor.DefaultProcessor;
 import com.example.batch.processor.PricingProcessor;
 import com.example.batch.processor.RiskProcessor;
 import com.example.batch.processor.SettlementProcessor;
+import com.example.batch.writer.DefaultWriter;
+import com.example.batch.writer.PricingWriter;
+import com.example.batch.writer.SettlementWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.*;
@@ -92,6 +95,26 @@ public class BatchConfig {
     return router;
   }
   @Bean public ItemWriter<LogRecord> writer() { return ConsoleWriters.byService(); }
+
+  @Bean(name = "routedWriter")
+  ItemWriter<LogRecord> routedWriter(
+          @Qualifier("pricingWriter")    PricingWriter pricingWriter,
+          @Qualifier("settlementWriter")  SettlementWriter settlementWriter,
+          @Qualifier("pricingWriter")  PricingWriter riskWriter,
+          @Qualifier("defaultWriter")  DefaultWriter otherWriter) {
+
+    var writer = new org.springframework.batch.item.support.ClassifierCompositeItemWriter<LogRecord>();
+    writer.setClassifier(record -> {
+      String svc = record.serviceName().toLowerCase();
+      return switch (svc) {
+        case "pricing"    -> pricingWriter;
+        case "settlement" -> settlementWriter;
+        case "risk" -> riskWriter;
+        default           -> otherWriter;
+      };
+    });
+    return writer;
+  }
   @Bean("processorPipeline")
   public ItemProcessor<String, LogRecord> processorPipeline(
           @Qualifier("lineToRecordProcessor") ItemProcessor<String, LogRecord> first,
@@ -106,7 +129,7 @@ public class BatchConfig {
                          PlatformTransactionManager tx,
                          MultiResourceItemReader<String> reader,
                          @Qualifier("processorPipeline") ItemProcessor<String, LogRecord> processorPipeline,
-                         ItemWriter<LogRecord> writer) {
+                         @Qualifier("routedWriter") ItemWriter<LogRecord> writer) {
 
     // modern executor config
     ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -127,6 +150,12 @@ public class BatchConfig {
             .listener(new ReadLog())
             .build();
   }
+
+  JobExecutionListener shutdownExec = new JobExecutionListener() {
+    @Override public void afterJob(JobExecution jobExecution) {
+      executor.shutdown();              // graceful stop
+    }
+  };
 
   @Bean
   public Job importJob(JobRepository repo,  Step importStep) {
