@@ -18,16 +18,25 @@ app:
   glob: "**/*.gz"
   filenameMustContain: "nomatch"
   chunkSize: 500
-  risk:
-    dryRun: true             # soft-run: insert then rollback chunk
-    selectSql: "SELECT id, col_a, col_b FROM source_table WHERE id = ?"
-    insertSql: "INSERT INTO dest_table (id, col_a, col_b) VALUES (?, ?, ?)"
-  # JDBC URLs are examples; replace with yours
-  riskSource:
-    url: jdbc:postgresql://SOURCE_HOST:5432/source_db
-    username: source_user
-    password: source_pass
-  riskDest:
-    url: jdbc:postgresql://DEST_HOST:5432/dest_db
-    username: dest_user
-    password: dest_pass
+  db:
+    source:       # Postgres
+      url: jdbc:postgresql://SRC_HOST:5432/srcdb
+      username: src_user
+      password: src_pass
+    dest:         # Oracle
+      url: jdbc:oracle:thin:@//DST_HOST:1521/DST_SVC
+      username: dst_user
+      password: dst_pass
+  modelgen:
+    basePackage: "com.example.batch.model"
+    outputDir: "src/main/java"       # where to write .java files
+
+    risk:
+      source:
+        schema: "public"              # <-- set your PG schema
+        table:  "risk_source_table"   # <-- set your PG table
+        class:  "RiskSourceRow"
+      dest:
+        schema: "RISK_DST"            # <-- set your Oracle schema (uppercase typical)
+        table:  "RISK_DEST_TABLE"     # <-- set your Oracle table
+        class:  "RiskDestRow"
