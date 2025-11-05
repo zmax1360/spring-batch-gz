@@ -18,3 +18,16 @@ app:
   glob: "**/*.gz"
   filenameMustContain: "nomatch"
   chunkSize: 500
+  risk:
+    dryRun: true             # soft-run: insert then rollback chunk
+    selectSql: "SELECT id, col_a, col_b FROM source_table WHERE id = ?"
+    insertSql: "INSERT INTO dest_table (id, col_a, col_b) VALUES (?, ?, ?)"
+  # JDBC URLs are examples; replace with yours
+  riskSource:
+    url: jdbc:postgresql://SOURCE_HOST:5432/source_db
+    username: source_user
+    password: source_pass
+  riskDest:
+    url: jdbc:postgresql://DEST_HOST:5432/dest_db
+    username: dest_user
+    password: dest_pass

@@ -151,11 +151,7 @@ public class BatchConfig {
             .build();
   }
 
-  JobExecutionListener shutdownExec = new JobExecutionListener() {
-    @Override public void afterJob(JobExecution jobExecution) {
-      executor.shutdown();              // graceful stop
-    }
-  };
+
 
   @Bean
   public Job importJob(JobRepository repo,  Step importStep) {
